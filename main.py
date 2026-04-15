@@ -1,8 +1,8 @@
 # main.py
 import argparse
 from itertools import cycle, islice
-from simulation import run_simulation
-from results import print_results
+from simulation import run_simulation, run_head_to_head
+from results import print_results, print_histogram, print_head_to_head
 from strategies import (
     LongestPathStrategy,
     RandomPathStrategy,
@@ -28,6 +28,14 @@ parser.add_argument(
     "--games", type=int, default=500,
     help="Number of games to simulate (default 500)",
 )
+parser.add_argument(
+    "--analysis", action="store_true",
+    help="Show score distribution histograms with median and std dev",
+)
+parser.add_argument(
+    "--head-to-head", action="store_true",
+    help="Run all pairwise 2-player matchups and show a win-rate matrix",
+)
 args = parser.parse_args()
 
 max_pip = RECOMMENDED_SET[args.players]
@@ -37,3 +45,11 @@ strategies = [cls() for cls in islice(cycle(strategy_types), args.players)]
 
 result = run_simulation(strategies, num_games=args.games, max_pip=max_pip)
 print_results(result)
+
+if args.analysis:
+    print_histogram(result)
+
+if args.head_to_head:
+    print(f"\nRunning head-to-head ({args.games} games per matchup)...")
+    win_matrix = run_head_to_head(strategy_types, num_games=args.games, max_pip=max_pip)
+    print_head_to_head(strategy_types, win_matrix)

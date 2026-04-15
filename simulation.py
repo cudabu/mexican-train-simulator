@@ -19,6 +19,22 @@ class PlayerResult:
         return sum(self.scores) / len(self.scores)
 
     @property
+    def median_score(self) -> float:
+        if not self.scores:
+            return 0.0
+        s = sorted(self.scores)
+        n = len(s)
+        mid = n // 2
+        return (s[mid - 1] + s[mid]) / 2 if n % 2 == 0 else float(s[mid])
+
+    @property
+    def std_dev(self) -> float:
+        if len(self.scores) < 2:
+            return 0.0
+        avg = self.avg_score
+        return (sum((s - avg) ** 2 for s in self.scores) / len(self.scores)) ** 0.5
+
+    @property
     def win_rate(self) -> float:
         if not self.scores:
             return 0.0
@@ -46,6 +62,7 @@ def run_simulation(
     strategies: list[Strategy],
     num_games: int = 1000,
     max_pip: int = 12,
+    verbose: bool = True,
 ) -> SimulationResult:
     """
     Run num_games complete games with the given strategies.
@@ -87,7 +104,7 @@ def run_simulation(
                 results[i].wins += 1
 
         # Progress indicator for large simulations
-        if (game_num + 1) % 100 == 0:
+        if verbose and (game_num + 1) % 100 == 0:
             print(f"  Completed {game_num + 1}/{num_games} games...", flush=True)
 
     return SimulationResult(
@@ -98,3 +115,29 @@ def run_simulation(
     )
 
 
+def run_head_to_head(
+    strategy_types: list[type],
+    num_games: int = 500,
+    max_pip: int = 12,
+) -> list[list[float]]:
+    """
+    Run all pairwise 2-player matchups between the given strategy classes.
+    Returns win_matrix[i][j] = win rate (%) of strategy i when playing strategy j.
+    Diagonal entries are 0.0 (a strategy does not play itself).
+    """
+    n = len(strategy_types)
+    win_matrix = [[0.0] * n for _ in range(n)]
+
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            result = run_simulation(
+                [strategy_types[i](), strategy_types[j]()],
+                num_games=num_games,
+                max_pip=max_pip,
+                verbose=False,
+            )
+            win_matrix[i][j] = result.player_results[0].win_rate
+
+    return win_matrix
