@@ -222,6 +222,20 @@ print(solution.remainder)  # leftover tiles
 print(solution.open_end)   # open end after path is played
 ```
 
+## Todo
+
+**Solver**
+- [ ] Memoization or pruning to speed up DFS on large hands (double-15/18)
+- [ ] Vision input — auto-populate `--tiles` from a photo of your hand
+
+**Strategies**
+- [ ] Smarter off-path tile dumping — prefer tiles that block opponents' longest paths rather than just playing highest pip
+- [ ] `HumanStrategy` — interactive CLI player to compete against simulated strategies
+
+**Simulation analysis**
+- [ ] Seat bias analysis — determine whether turn order (going first vs last) affects win rate, controlling for strategy quality
+- [ ] Per-round scoring breakdown — show which rounds each strategy tends to win or lose badly
+
 ## Inspiration
 
 Strategy design and simulation approach based on
