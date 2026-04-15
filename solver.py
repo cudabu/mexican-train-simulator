@@ -12,8 +12,20 @@ Usage as a module:
     print(solution.path)       # tiles to play on own train, in order
     print(solution.remainder)  # tiles left over for other trains
 
-Usage as a CLI:
+One-shot CLI:
     python3 solver.py --open-end 6 --tiles "6-4 4-3 3-1 2-2 5-1"
+
+Interactive REPL (game companion):
+    python3 solver.py --interactive
+    python3 solver.py --interactive --open-end 6 --tiles "6-4 4-3 3-1 2-2 5-1"
+
+REPL commands:
+    played <tile>   Played on YOUR train   — removes tile, advances open end
+    dumped <tile>   Played on another train — removes tile, open end unchanged
+    drew   <tile>   Drew from boneyard      — adds tile to hand
+    hand            Show full hand
+    help            Show this command list
+    quit            Exit
 """
 
 from dataclasses import dataclass
@@ -75,40 +87,210 @@ def _chain_end(path: list[Domino], start: int) -> int:
     return end
 
 
+# ---------------------------------------------------------------------------
+# Parsing helpers
+# ---------------------------------------------------------------------------
+
+def _parse_tile(token: str) -> Domino:
+    """Parse a single 'high-low' token, e.g. '6-4' → Domino(6, 4)."""
+    parts = token.split("-")
+    if len(parts) != 2:
+        raise ValueError(f"Invalid tile '{token}' — expected format: high-low (e.g. 6-4)")
+    return Domino(int(parts[0]), int(parts[1]))
+
+
 def _parse_tiles(tile_str: str) -> list[Domino]:
     """Parse space-separated 'high-low' tile strings, e.g. '6-4 3-3 2-1'."""
-    tiles = []
-    for token in tile_str.split():
-        parts = token.split("-")
-        if len(parts) != 2:
-            raise ValueError(f"Invalid tile '{token}' — expected format: high-low (e.g. 6-4)")
-        tiles.append(Domino(int(parts[0]), int(parts[1])))
-    return tiles
+    return [_parse_tile(t) for t in tile_str.split()]
 
+
+def _find_tile(hand: list[Domino], tile: Domino) -> int | None:
+    """Return the index of tile in hand, or None if not present."""
+    try:
+        return hand.index(tile)
+    except ValueError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# REPL display
+# ---------------------------------------------------------------------------
+
+def _print_state(hand: list[Domino], open_end: int) -> None:
+    divider = f"── Open end: {open_end}  │  {len(hand)} tile{'s' if len(hand) != 1 else ''} in hand "
+    print(f"\n{divider}{'─' * max(0, 50 - len(divider))}")
+
+    if not hand:
+        print("  Hand is empty — you're out!")
+        return
+
+    solution = solve(hand, open_end)
+
+    if not solution.path:
+        print("  No playable path from this end — draw or dump.")
+        hand_str = "  Hand:  " + " ".join(str(d) for d in hand)
+        print(hand_str)
+    else:
+        tiles_per_line = 9
+        path_lines = [
+            solution.path[i:i + tiles_per_line]
+            for i in range(0, len(solution.path), tiles_per_line)
+        ]
+        prefix = f"  Path ({len(solution.path)}):  "
+        indent = " " * len(prefix)
+        for k, chunk in enumerate(path_lines):
+            line = (prefix if k == 0 else indent) + "  ".join(str(d) for d in chunk)
+            if k == len(path_lines) - 1:
+                line += f"  → end: {solution.open_end}"
+            print(line)
+
+    if solution.remainder:
+        print(f"  Dump ({len(solution.remainder)}):   " + "  ".join(str(d) for d in solution.remainder))
+    else:
+        print("  Dump: none — full hand on train!")
+
+
+def _print_help() -> None:
+    print("""
+  Commands:
+    played <tile>   Played on YOUR train     removes tile, advances open end
+    dumped <tile>   Played on another train  removes tile, open end unchanged
+    drew   <tile>   Drew from boneyard       adds tile to hand
+    hand            Show full hand
+    help            Show this list
+    quit            Exit  (also: q, exit)
+
+  Tile format:  high-low  e.g.  7-3  or  10-10  or  6-6""")
+
+
+# ---------------------------------------------------------------------------
+# REPL loop
+# ---------------------------------------------------------------------------
+
+def _repl(hand: list[Domino], open_end: int) -> None:
+    _print_state(hand, open_end)
+
+    while True:
+        try:
+            line = input("\n> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+
+        if not line:
+            continue
+
+        parts = line.split()
+        cmd = parts[0].lower()
+
+        if cmd in ("quit", "q", "exit"):
+            break
+
+        elif cmd in ("help", "?"):
+            _print_help()
+
+        elif cmd == "hand":
+            if hand:
+                print("  " + "  ".join(str(d) for d in hand))
+            else:
+                print("  Hand is empty.")
+
+        elif cmd in ("played", "p"):
+            if len(parts) < 2:
+                print("  Usage: played <tile>   e.g.  played 7-3")
+                continue
+            try:
+                tile = _parse_tile(parts[1])
+                idx = _find_tile(hand, tile)
+                if idx is None:
+                    print(f"  {tile} is not in your hand.")
+                    continue
+                if not tile.matches(open_end):
+                    print(f"  Note: {tile} doesn't match open end {open_end} — did you mean 'dumped'?")
+                hand.pop(idx)
+                open_end = tile.other_end(open_end)
+                _print_state(hand, open_end)
+            except ValueError as e:
+                print(f"  Error: {e}")
+
+        elif cmd in ("dumped", "d"):
+            if len(parts) < 2:
+                print("  Usage: dumped <tile>   e.g.  dumped 2-1")
+                continue
+            try:
+                tile = _parse_tile(parts[1])
+                idx = _find_tile(hand, tile)
+                if idx is None:
+                    print(f"  {tile} is not in your hand.")
+                    continue
+                hand.pop(idx)
+                _print_state(hand, open_end)
+            except ValueError as e:
+                print(f"  Error: {e}")
+
+        elif cmd in ("drew", "draw"):
+            if len(parts) < 2:
+                print("  Usage: drew <tile>   e.g.  drew 5-3")
+                continue
+            try:
+                tile = _parse_tile(parts[1])
+                hand.append(tile)
+                print(f"  Added {tile}.")
+                _print_state(hand, open_end)
+            except ValueError as e:
+                print(f"  Error: {e}")
+
+        else:
+            print(f"  Unknown command '{cmd}'. Type 'help' for commands.")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Find the longest playable path through a domino hand.")
-    parser.add_argument("--open-end", type=int, required=True, help="Current open end of your train (e.g. 6)")
-    parser.add_argument("--tiles", type=str, required=True, help="Space-separated tiles in high-low format (e.g. '6-4 3-3 2-1')")
+    parser = argparse.ArgumentParser(
+        description="Longest-path solver for a Mexican Train hand.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--open-end", type=int, default=None, help="Current open end of your train")
+    parser.add_argument("--tiles",    type=str, default=None, help="Space-separated tiles in high-low format")
+    parser.add_argument("--interactive", action="store_true", help="Start interactive game-companion REPL")
     args = parser.parse_args()
 
-    hand = _parse_tiles(args.tiles)
-    solution = solve(hand, args.open_end)
+    if args.interactive:
+        # Prompt for any missing inputs
+        if args.open_end is None:
+            args.open_end = int(input("Open end of your train: ").strip())
+        if args.tiles is None:
+            args.tiles = input("Your hand (e.g. 6-4 3-1 2-2): ").strip()
 
-    print(f"\nOpen end:  {args.open_end}")
-    print(f"Hand ({len(hand)} tiles):  {' '.join(str(d) for d in hand)}")
-    print()
+        hand = _parse_tiles(args.tiles)
+        print("\nType 'help' for commands.")
+        _repl(hand, args.open_end)
 
-    if not solution.path:
-        print("No playable path found from this open end.")
     else:
-        print(f"Path ({len(solution.path)} tiles):  {' '.join(str(d) for d in solution.path)}")
-        print(f"  → new open end: {solution.open_end}")
+        # One-shot mode — both args required
+        if args.open_end is None or args.tiles is None:
+            parser.error("--open-end and --tiles are required in one-shot mode (or use --interactive)")
 
-    if solution.remainder:
-        print(f"\nRemainder ({len(solution.remainder)} tiles): {' '.join(str(d) for d in solution.remainder)}")
-        print("  → dump on Mexican Train or open player trains")
-    else:
-        print("\nNo tiles left over — full hand fits on personal train!")
+        hand = _parse_tiles(args.tiles)
+        solution = solve(hand, args.open_end)
+
+        print(f"\nOpen end:  {args.open_end}")
+        print(f"Hand ({len(hand)} tiles):  {' '.join(str(d) for d in hand)}")
+        print()
+
+        if not solution.path:
+            print("No playable path found from this open end.")
+        else:
+            print(f"Path ({len(solution.path)} tiles):  {' '.join(str(d) for d in solution.path)}")
+            print(f"  → new open end: {solution.open_end}")
+
+        if solution.remainder:
+            print(f"\nRemainder ({len(solution.remainder)} tiles): {' '.join(str(d) for d in solution.remainder)}")
+            print("  → dump on Mexican Train or open player trains")
+        else:
+            print("\nNo tiles left over — full hand fits on personal train!")
