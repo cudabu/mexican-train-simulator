@@ -12,7 +12,7 @@ player.py         — Player state (hand, score, train)
 game.py           — Round and game loop, legal move calculation
 simulation.py     — Multi-game simulation engine
 results.py        — Ranked results table formatter
-solver.py         — Standalone longest-path solver (module + CLI)
+solver.py         — Longest-path solver: one-shot CLI and interactive game-companion REPL
 main.py           — Simulation entry point
 
 strategies/
@@ -33,6 +33,8 @@ python3 main.py [--players N] [--games N]
 |---|---|---|
 | `--players` | `4` | Number of players (2–14) |
 | `--games` | `500` | Number of complete games to simulate |
+| `--analysis` | off | Show score distribution histograms with median and σ |
+| `--head-to-head` | off | Run all pairwise 2-player matchups and print a win-rate matrix |
 
 The domino set is chosen automatically based on player count following the official Mexican Train recommendations:
 
@@ -60,12 +62,12 @@ $ python3 main.py
   ...
 Results — 500 games | Double-12 | 4 players
 ───────────────────────────────────────────
-  Rank  Strategy                   Win%     Avg    Min    Max
-  ───── ──────────────────────── ──────  ──────  ─────  ─────
-  1     LongestPathStrategy       42.0%   476.4    177    749
-  2     RandomPathStrategy        33.5%   491.8    223    855
-  3     GreedyStrategy            22.5%   508.6    282    803
-  4     RandomStrategy             3.0%   655.4    347   1024
+  Rank  Strategy                   Win%     Avg  Median    Min    Max
+  ───── ──────────────────────── ──────  ──────  ──────  ─────  ─────
+  1     LongestPathStrategy       45.0%   501.0   497.0    240    860
+  2     RandomPathStrategy        36.5%   502.1   502.5    245    783
+  3     GreedyStrategy            18.0%   540.6   541.0    276    808
+  4     RandomStrategy             0.5%   678.6   677.5    389   1042
 ```
 
 ## Strategies
@@ -85,28 +87,13 @@ Strategies are cycled across seats in order: LongestPath → RandomPath → Gree
 
 The solver finds the longest sequence playable on a personal train from a given open end, then lists the remaining tiles to dump on the Mexican Train or open player trains.
 
+### One-shot mode
+
 ```
 python3 solver.py --open-end <pip> --tiles "<high>-<low> ..."
 ```
 
 **Example:**
-
-```
-python3 solver.py --open-end 6 --tiles "6-4 4-3 3-1 2-2 5-1 6-6 0-3"
-```
-
-```
-Open end:  6
-Hand (7 tiles):  [6|4] [4|3] [3|1] [2|2] [5|1] [6|6] [3|0]
-
-Path (5 tiles):  [6|6] [6|4] [4|3] [3|1] [5|1]
-  → new open end: 5
-
-Remainder (2 tiles): [2|2] [3|0]
-  → dump on Mexican Train or open player trains
-```
-
-**Real-world example (23-tile hand, open end 3):**
 
 ```
 python3 solver.py --open-end 3 --tiles "4-2 3-7 1-3 6-6 9-3 11-0 10-7 5-4 9-5 10-6 9-8 2-1 5-0 4-7 9-2 10-10 3-2 3-8 10-3 2-7 6-7 1-8 5-8"
@@ -123,7 +110,59 @@ Remainder (3 tiles): [2|1] [7|4] [10|3]
   → dump on Mexican Train or open player trains
 ```
 
-The solver can also be used as a module:
+### Interactive mode (game companion)
+
+Run alongside a real game. Enter your hand once, then update it turn-by-turn as tiles are played or drawn. The solver recomputes the optimal path after every action.
+
+```
+python3 solver.py --interactive
+python3 solver.py --interactive --open-end 3 --tiles "4-2 3-7 ..."
+```
+
+| Command | Description |
+|---|---|
+| `played <tile>` | Played on **your** train — removes tile, advances open end |
+| `dumped <tile>` | Played on another train — removes tile, open end unchanged |
+| `drew <tile>` | Drew from boneyard — adds tile to hand |
+| `hand` | Show full hand |
+| `help` | Show command list |
+| `quit` | Exit |
+
+Tiles are entered in `high-low` format: `7-3`, `10-10`, `6-6`.
+
+**Example session:**
+
+```
+$ python3 solver.py --interactive --open-end 3 --tiles "4-2 3-7 9-3 10-7 10-10 2-1 5-0 3-2"
+
+── Open end: 3  │  8 tiles in hand ────────────────
+  Path (6):   [7|3]  [10|7]  [10|10]  [3|2]... → end: 0
+  Dump (2):   [2|1]  [4|2]
+
+> played 7-3
+
+── Open end: 7  │  7 tiles in hand ────────────────
+  Path (5):   [10|7]  [10|10]  [9|3]... → end: 0
+  Dump (2):   [2|1]  [4|2]
+
+> drew 7-4
+
+  Added [7|4].
+
+── Open end: 7  │  8 tiles in hand ────────────────
+  Path (6):   [7|4]  [4|2]  [2|1]... → end: 0
+  Dump (2):   [9|3]  [3|2]
+
+> dumped 2-1
+
+── Open end: 7  │  7 tiles in hand ────────────────
+  Path (5):   [10|7]  [10|10]... → end: 0
+  Dump (1):   [9|3]
+
+> quit
+```
+
+### Python module
 
 ```python
 from solver import solve
