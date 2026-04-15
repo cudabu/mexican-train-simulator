@@ -51,6 +51,23 @@ python3 main.py --players 2       # 2 players, Double-9
 python3 main.py --players 6 --games 1000
 ```
 
+**Output:**
+
+```
+$ python3 main.py
+  Completed 100/500 games...
+  Completed 200/500 games...
+  ...
+Results — 500 games | Double-12 | 4 players
+───────────────────────────────────────────
+  Rank  Strategy                   Win%     Avg    Min    Max
+  ───── ──────────────────────── ──────  ──────  ─────  ─────
+  1     LongestPathStrategy       42.0%   476.4    177    749
+  2     RandomPathStrategy        33.5%   491.8    223    855
+  3     GreedyStrategy            22.5%   508.6    282    803
+  4     RandomStrategy             3.0%   655.4    347   1024
+```
+
 ## Strategies
 
 Strategies are cycled across seats in order: LongestPath → RandomPath → Greedy → Random.
