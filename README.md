@@ -106,6 +106,23 @@ Remainder (2 tiles): [2|2] [3|0]
   → dump on Mexican Train or open player trains
 ```
 
+**Real-world example (23-tile hand, open end 3):**
+
+```
+python3 solver.py --open-end 3 --tiles "4-2 3-7 1-3 6-6 9-3 11-0 10-7 5-4 9-5 10-6 9-8 2-1 5-0 4-7 9-2 10-10 3-2 3-8 10-3 2-7 6-7 1-8 5-8"
+```
+
+```
+Open end:  3
+Hand (23 tiles):  [4|2] [7|3] [3|1] [6|6] [9|3] [11|0] [10|7] [5|4] [9|5] [10|6] [9|8] [2|1] [5|0] [7|4] [9|2] [10|10] [3|2] [8|3] [10|3] [7|2] [7|6] [8|1] [8|5]
+
+Path (20 tiles):  [7|3] [10|7] [10|10] [10|6] [6|6] [7|6] [7|2] [4|2] [5|4] [9|5] [9|2] [3|2] [3|1] [8|1] [8|3] [9|3] [9|8] [8|5] [5|0] [11|0]
+  → new open end: 11
+
+Remainder (3 tiles): [2|1] [7|4] [10|3]
+  → dump on Mexican Train or open player trains
+```
+
 The solver can also be used as a module:
 
 ```python
@@ -118,3 +135,9 @@ print(solution.path)       # tiles to play on own train, in order
 print(solution.remainder)  # leftover tiles
 print(solution.open_end)   # open end after path is played
 ```
+
+## Inspiration
+
+Strategy design and simulation approach based on
+[Mexican Train strategy, or how to defeat the Grim Reaper](https://markmywords.substack.com/p/mexican-train-strategy-or-how-to)
+by Mark Newheiser.
